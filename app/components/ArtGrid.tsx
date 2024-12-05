@@ -153,6 +153,8 @@ export default function ArtGrid({ roomId }: ArtGridProps) {
   const [users, setUsers] = useState<string[]>([]);
   const [designs, setDesigns] = useState<Record<string, Design>>({});
   const [clickCount, setClickCount] = useState(1);
+  const [count, setCount] = useState(0);
+  const durableObjectName = 'x0y0_v0';
 
   const socket = usePartySocket({
     room: roomId,
@@ -174,7 +176,28 @@ export default function ArtGrid({ roomId }: ArtGridProps) {
     }
   });
 
-  const handleCanvasClick = (userId: string) => {
+  const fetchCount = async () => {
+    try {
+      const response = await fetch(`https://s-count.adam-f8f.workers.dev/?name=${durableObjectName}`);
+      const data = await response.text();
+      setCount(parseInt(data, 10));
+    } catch (error) {
+      console.error('Error fetching count:', error);
+    }
+  };
+
+  const handleIncrement = async () => {
+    try {
+      await fetch(`https://s-count.adam-f8f.workers.dev/increment?name=${durableObjectName}`, {
+        method: 'POST',
+      });
+      fetchCount(); // Update count after increment
+    } catch (error) {
+      console.error('Error incrementing count:', error);
+    }
+  };
+
+  const handleCanvasClick = async (userId: string) => {
     if (userId === socket.id) {
       setClickCount(prev => prev + 1);
       const newDesign = generateDesign(clickCount);
@@ -182,6 +205,7 @@ export default function ArtGrid({ roomId }: ArtGridProps) {
         type: 'update_design',
         design: newDesign
       }));
+      await handleIncrement(); // Add increment call
     }
   };
 
@@ -196,8 +220,13 @@ export default function ArtGrid({ roomId }: ArtGridProps) {
     }
   }, [users, socket.id]);
 
+  // Add useEffect for initial count fetch
+  useEffect(() => {
+    fetchCount();
+  }, []);
+
   return (
-    <div style={{ display: 'flex', flexWrap: 'none', background: 'orange', height: '100%' }}>
+    <div style={{ display: 'flex', flexWrap: 'none', height: '100%', position: 'relative' }}>
       {users.map(userId => (
         <div key={userId} style={{ width: '100%', alignItems: 'stretch', position: 'relative' }}>
           <SVGCanvas
@@ -205,12 +234,14 @@ export default function ArtGrid({ roomId }: ArtGridProps) {
             isActive={userId === socket.id}
             onClick={() => handleCanvasClick(userId)}
           />
-          <div style={{ position: 'absolute', bottom: 0, right: 0, left: 0, textAlign: 'center', marginTop: '0.5rem', fontSize: '10px' }}>
-            User: {userId.slice(0, 6)}
-            {userId === socket.id && ' (You)'}
+          <div style={{ position: 'absolute', bottom: '8px', right: 0, left: 0, textAlign: 'center', marginTop: '0.5rem', fontSize: '10px' }}>
+            <code>{userId.slice(0, 6)}</code>
+            {userId === socket.id && <b> You</b>}
           </div>
+         
         </div>
       ))}
+       <small style={{ position: 'absolute', top: '8px', right: '8px' }}>{count}</small>
     </div>
   );
 }

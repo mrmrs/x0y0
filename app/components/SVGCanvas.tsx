@@ -9,22 +9,37 @@ interface SVGCanvasProps {
   onClick?: () => void;
 }
 
-// Add complexity levels
+// Update COMPLEXITY_LEVELS to have much higher shape counts
 const COMPLEXITY_LEVELS = {
-  1: { shapes: 1, useGradients: false, useNoise: false },
-  2: { shapes: 2, useGradients: true, useNoise: false },
-  3: { shapes: 3, useGradients: true, useNoise: true },
-  4: { shapes: 5, useGradients: true, useNoise: true, useDistortion: true },
-  // Add more levels as needed
+  1: { shapes: 5, useGradients: false, useNoise: false, style: 'minimal' },
+  2: { shapes: 15, useGradients: true, useNoise: false, style: 'colorful' },
+  3: { shapes: 25, useGradients: false, useNoise: true, style: 'monochrome' },
+  4: { shapes: 40, useGradients: true, useNoise: true, style: 'chaotic' },
+  5: { shapes: 10, useGradients: false, useNoise: false, style: 'geometric' },
 };
 
 // Add a utility function to generate deterministic colors from a seed
 function getColorFromSeed(seed: string | number, index: number): string {
-  // Use the seed and index to generate a predictable number between 0 and 1
   const hash = String(seed) + index;
   const n = Array.from(hash).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const hue = (n * 137.508) % 360; // Golden angle approximation for nice color distribution
-  return `hsl(${hue}, 70%, 50%)`;
+  
+  // Determine color style based on seed
+  const styleNum = n % 5;
+  
+  switch(styleNum) {
+    case 0: // Monochromatic
+      return `hsl(${n % 360}, 20%, ${(n * 13) % 70 + 15}%)`; 
+    case 1: // Black & White
+      return `hsl(0, 0%, ${(n * 17) % 100}%)`;
+    case 2: // Vibrant
+      return `hsl(${n % 360}, 100%, 50%)`;
+    case 3: // Pastels
+      return `hsl(${n % 360}, 70%, 85%)`;
+    case 4: // Deep & Rich
+      return `hsl(${n % 360}, 80%, 30%)`;
+    default:
+      return `hsl(${n % 360}, 70%, 50%)`;
+  }
 }
 
 // Add new filter generation functions
@@ -193,6 +208,12 @@ export const SVGCanvas = memo(function SVGCanvas({
   isActive, 
   onClick 
 }: SVGCanvasProps) {
+  const styleNum = parseInt(design.id, 16) % 5;
+  const complexityLevel = ((parseInt(design.id, 16) || 1) % 5) + 1;
+  
+  // Instead of limiting to available shapes, repeat the shapes we have
+  const numShapes = COMPLEXITY_LEVELS[complexityLevel].shapes;
+
   // Generate stable gradients for the current design
   const gradientDefs = useMemo(() => {
     return design.shapes.map((_, i) => ({
@@ -202,6 +223,18 @@ export const SVGCanvas = memo(function SVGCanvas({
         getColorFromSeed(design.id, i * 2 + 1)
       ]
     }));
+  }, [design.id]);
+
+  // Generate background style
+  const backgroundColor = useMemo(() => {
+    switch(styleNum) {
+      case 0: return 'transparent';
+      case 1: return '#000000';
+      case 2: return getColorFromSeed(design.id, 999);
+      case 3: return 'white';
+      case 4: return `url(#gradient-${design.shapes.length - 1})`;
+      default: return 'transparent';
+    }
   }, [design.id]);
 
   return (
@@ -223,7 +256,7 @@ export const SVGCanvas = memo(function SVGCanvas({
         style={{
           width: '100%',
           height: '100%',
-          background: 'orange',
+          background: backgroundColor,
           position: 'absolute',
           top: 0,
           right: 0,
@@ -295,15 +328,39 @@ export const SVGCanvas = memo(function SVGCanvas({
           fill={`url(#gradient-${design.shapes.length - 1})`}
         />
         
-        {design.shapes.map((shape, i) => (
-          <ShapeElement 
-            key={i} 
-            shape={shape} 
-            gradientId={`gradient-${i}`}
-            useNoise={design.shapes.length > 2}
-            design={design}
-          />
-        ))}
+        {/* Render different numbers of shapes based on style */}
+        {Array.from({ length: numShapes }).map((_, i) => {
+          // Get the base shape and allow it to repeat
+          const baseShape = design.shapes[i % design.shapes.length] || {
+            type: 'circle',
+            x: 128,
+            y: 128,
+            size: 50,
+            rotation: 0
+          };
+
+          // Add more randomization to position and size
+          const randomOffset = parseInt(design.id + i, 16) % 256;
+          const randomSize = (parseInt(design.id + i, 16) % 200) + 20;
+
+          return (
+            <ShapeElement 
+              key={i} 
+              shape={{
+                ...baseShape,
+                // Add more variation to x and y positions
+                x: ((baseShape.x + randomOffset) % 256),
+                y: ((baseShape.y + (randomOffset * 1.618)) % 256),
+                // More dramatic size variations
+                size: baseShape.size * (0.2 + (randomSize / 100)),
+                rotation: (parseInt(design.id + i, 16) % 360)
+              }}
+              gradientId={`gradient-${i % design.shapes.length}`}
+              useNoise={styleNum === 2}
+              design={design}
+            />
+          );
+        })}
       </svg>
     </div>
   );
@@ -320,10 +377,15 @@ const ShapeElement = ({
   useNoise: boolean;
   design: Design;
 }) => {
+  const styleNum = parseInt(design.id, 16) % 5;
+  
   const commonProps = {
-    fill: `url(#${gradientId})`,
-    filter: Math.random() > 0.2 ? `url(#filter-${Math.floor(Math.random() * design.shapes.length)})` : undefined,
-    transform: shape.rotation ? `rotate(${shape.rotation} ${shape.x} ${shape.y})` : undefined,
+    fill: styleNum === 1 ? 'white' : `url(#${gradientId})`,
+    stroke: styleNum === 1 ? 'black' : 'none',
+    strokeWidth: styleNum === 1 ? '2' : '0',
+    filter: styleNum === 2 ? `url(#filter-${Math.floor(Math.random() * design.shapes.length)})` : undefined,
+    transform: `rotate(${shape.rotation} ${shape.x} ${shape.y})`,
+    opacity: styleNum === 4 ? 0.7 : 1,
   };
 
   switch (shape.type) {
@@ -354,7 +416,7 @@ const ShapeElement = ({
           x2={shape.x + shape.size/2}
           y2={shape.y}
           stroke={`url(#${gradientId})`}
-          strokeWidth={shape.size/10}
+          strokeWidth={1}
           {...commonProps}
         />
       );

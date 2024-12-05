@@ -3,7 +3,7 @@ import usePartySocket from 'partysocket/react';
 import { SVGCanvas } from './SVGCanvas';
 
 interface Shape {
-  type: 'circle' | 'rect';
+  type: 'circle' | 'rect' | 'line' | 'triangle' | 'squiggle';
   x: number;
   y: number;
   size: number;
@@ -12,8 +12,15 @@ interface Shape {
 }
 
 interface Design {
+  id: string;
   shapes: Shape[];
-  filters: Array<any>;
+  filters: Array<{
+    type: string;
+    parameters: {
+      seed: number;
+      intensity: number;
+    };
+  }>;
 }
 
 interface ArtGridProps {
@@ -30,28 +37,40 @@ const randomColor = () => {
 };
 
 // Generate a random design
-const generateDesign = (): Design => {
+const generateDesign = (clickCount: number): Design => {
   const shapes: Shape[] = [];
-  const numShapes = Math.floor(Math.random() * 128) + 3; // 3-7 shapes
+  const baseShapes = Math.floor(Math.random() * 5) + 3; // 3-7 shapes
+  const numShapes = baseShapes + (clickCount - 1) * (Math.floor(Math.random() * 6) + 5); // Add 5-10 shapes per click
 
   for (let i = 0; i < numShapes; i++) {
     shapes.push({
-      type: Math.random() > 0.5 ? 'circle' : 'rect',
+      type: (() => {
+        const shapes = ['circle', 'rect', 'line', 'triangle', 'squiggle'];
+        return shapes[Math.floor(Math.random() * shapes.length)] as Shape['type'];
+      })(),
       x: Math.random() * 512,
       y: Math.random() * 1920,
-      size: Math.random() * 30 + 10, // size between 10-40
+      size: Math.random() * 128 + 1, // size between 10-40
       color: randomColor(),
       rotation: Math.random() * 360
     });
   }
 
   return {
+    id: Math.random().toString(16).slice(2),
     shapes,
-    filters: [] // We can add filters later
+    filters: Array(numShapes).fill(null).map((_, i) => ({
+      type: 'complex',
+      parameters: {
+        seed: Math.random(),
+        intensity: Math.random() * 0.8 + 0.2
+      }
+    }))
   };
 };
 
 const emptyDesign: Design = {
+  id: '',
   shapes: [],
   filters: []
 };
@@ -59,6 +78,7 @@ const emptyDesign: Design = {
 export default function ArtGrid({ roomId }: ArtGridProps) {
   const [users, setUsers] = useState<string[]>([]);
   const [designs, setDesigns] = useState<Record<string, Design>>({});
+  const [clickCount, setClickCount] = useState(1);
 
   const socket = usePartySocket({
     room: roomId,
@@ -82,7 +102,8 @@ export default function ArtGrid({ roomId }: ArtGridProps) {
 
   const handleCanvasClick = (userId: string) => {
     if (userId === socket.id) {
-      const newDesign = generateDesign();
+      setClickCount(prev => prev + 1);
+      const newDesign = generateDesign(clickCount);
       socket.send(JSON.stringify({
         type: 'update_design',
         design: newDesign
@@ -93,7 +114,7 @@ export default function ArtGrid({ roomId }: ArtGridProps) {
   // Only generate initial design for the current user when they first join
   useEffect(() => {
     if (users.includes(socket.id) && !designs[socket.id]) {
-      const newDesign = generateDesign();
+      const newDesign = generateDesign(1);
       socket.send(JSON.stringify({
         type: 'update_design',
         design: newDesign

@@ -1,5 +1,6 @@
 {
   "$schema": "https://www.partykit.io/schema.json",
+  "domain": "x0y0.app",
   "name": "x0y0",
   "main": "party/server.ts",
   "compatibilityDate": "2024-12-04",

@@ -27,21 +27,95 @@ interface ArtGridProps {
   roomId: string;
 }
 
-// Helper function to generate random colors
-const randomColor = () => {
-  const colors = [
-    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
-    '#FFEEAD', '#D4A5A5', '#9B59B6', '#3498DB'
-  ];
-  return colors[Math.floor(Math.random() * colors.length)];
+// Helper functions for color generation
+const generateRandomHex = () => {
+  return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+};
+
+const colorPalette = [
+  // Reds to Oranges
+  '#FF0000', '#FF1A1A', '#FF3333', '#FF4D4D', '#FF6666', '#FF8080', 
+  '#FF9999', '#FFB3B3', '#FF8533', '#FF9933', '#FFB366', '#FFCC99',
+  // Yellows
+  '#FFFF00', '#FFFF33', '#FFFF66', '#FFFF99', '#FFFFCC', '#FFFFD9',
+  // Greens
+  '#00FF00', '#33FF33', '#66FF66', '#99FF99', '#CCFFCC', '#004D00',
+  '#006600', '#008000', '#009900', '#00B300', '#00CC00', '#00E600',
+  // Blues
+  '#0000FF', '#1A1AFF', '#3333FF', '#4D4DFF', '#6666FF', '#8080FF',
+  '#9999FF', '#B3B3FF', '#000099', '#0000B3', '#0000CC', '#0000E6',
+  // Purples
+  '#4B0082', '#663399', '#800080', '#9932CC', '#9400D3', '#8B008B',
+  '#9370DB', '#BA55D3', '#DDA0DD', '#EE82EE', '#FF00FF', '#DA70D6',
+  // ... (more colors omitted for brevity)
+];
+
+const generateMonochromeColor = () => {
+  // 70% chance of pure black or white
+  if (Math.random() < 0.7) {
+    return Math.random() < 0.5 ? '#000000' : '#FFFFFF';
+  }
+  // 30% chance of a grayscale color
+  const value = Math.floor(Math.random() * 256);
+  return `#${value.toString(16).padStart(2, '0').repeat(3)}`;
+};
+
+const generatePureBWColor = () => {
+  return Math.random() < 0.5 ? '#000000' : '#FFFFFF';
+};
+
+const randomColor = (colorMode: 'normal' | 'monochrome' | 'bw' = 'normal') => {
+  switch (colorMode) {
+    case 'bw':
+      return generatePureBWColor();
+    case 'monochrome':
+      return generateMonochromeColor();
+    default:
+      if (Math.random() < 0.2) {
+        return generateRandomHex();
+      }
+      return colorPalette[Math.floor(Math.random() * colorPalette.length)];
+  }
 };
 
 // Generate a random design
 const generateDesign = (clickCount: number): Design => {
   const shapes: Shape[] = [];
-  const baseShapes = Math.floor(Math.random() * 5) + 3; // 3-7 shapes
-  const numShapes = baseShapes + (clickCount - 1) * (Math.floor(Math.random() * 6) + 5); // Add 5-10 shapes per click
+  const baseShapes = Math.floor(Math.random() * 5) + 3;
+  const numShapes = baseShapes + (clickCount - 1) * (Math.floor(Math.random() * 6) + 5);
+  
+  const colorMode = (() => {
+    const rand = Math.random();
+    console.log('Color mode random value:', rand);
+    if (rand < 0.15) {
+      console.log('Selected monochrome mode');
+      return 'monochrome';       // 0.00 to 0.15 = monochrome
+    }
+    if (rand < 0.25) {
+      console.log('Selected black and white mode');
+      return 'bw';               // 0.15 to 0.25 = bw
+    }
+    console.log('Selected normal color mode');
+    return 'normal';            // 0.25 to 1.00 = normal
+  })();
 
+  // 20% chance to add a grid of vertical lines
+  if (Math.random() < 0.2) {
+    const numLines = 128;
+    const spacing = 512 / numLines;
+    for (let i = 0; i < numLines; i++) {
+      shapes.push({
+        type: 'line',
+        x: i * spacing,
+        y: 0,
+        size: 1920, // Full height
+        color: randomColor(colorMode),
+        rotation: 0
+      });
+    }
+  }
+
+  // Add regular shapes
   for (let i = 0; i < numShapes; i++) {
     shapes.push({
       type: (() => {
@@ -50,8 +124,8 @@ const generateDesign = (clickCount: number): Design => {
       })(),
       x: Math.random() * 512,
       y: Math.random() * 1920,
-      size: Math.random() * 128 + 1, // size between 10-40
-      color: randomColor(),
+      size: Math.random() * 128 + 1,
+      color: randomColor(colorMode),
       rotation: Math.random() * 360
     });
   }
@@ -59,13 +133,13 @@ const generateDesign = (clickCount: number): Design => {
   return {
     id: Math.random().toString(16).slice(2),
     shapes,
-    filters: Array(numShapes).fill(null).map((_, i) => ({
-      type: 'complex',
+    filters: [{  // Single stable filter
+      type: 'saturate',
       parameters: {
-        seed: Math.random(),
-        intensity: Math.random() * 0.8 + 0.2
+        seed: Math.random(),  // This will be fixed when design is created
+        intensity: 0.8        // Using a fixed value for stability
       }
-    }))
+    }]
   };
 };
 
